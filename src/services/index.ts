@@ -8,7 +8,9 @@
 //   교체: apiRequestService  (백엔드 구축 완료 후)
 // ============================================================
 
-export { mockRequestService as requestService } from './mockRequestService';
+import { apiRequestService } from './apiRequestService';
+
+export const requestService = apiRequestService;
 
 // API 전환 예시 (백엔드 준비 완료 시 위 줄을 아래 줄로 교체)
 // export { apiRequestService as requestService } from './apiRequestService';

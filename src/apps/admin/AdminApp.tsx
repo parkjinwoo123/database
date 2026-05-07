@@ -3,126 +3,122 @@ import { LayoutDashboard, Users, Activity, CheckCircle2 } from 'lucide-react';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { LanguageToggle } from '../../components/LanguageToggle';
 import { useTranslation } from 'react-i18next';
-import { useRequests, useAdminStats } from '../../hooks/useRequests';
+import { useEffect, useState } from 'react';
 
 export const AdminApp = () => {
   const { t } = useTranslation();
 
-  // useRequests: 요청 목록 (GET /requests 로 교체 가능)
-  const { requests } = useRequests();
+  const [requests, setRequests] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    assigned: 0,
+    completed: 0
+  });
 
-  // useAdminStats: 통계 (GET /admin/stats 로 교체 가능)
-  const stats = useAdminStats();
+  // 🔥 데이터 가져오기
+  const fetchData = async () => {
+    try {
+      const res = await fetch("http://localhost:3000/api/requests");
+      const data = await res.json();
+
+      setRequests(data.requests);
+
+      const total = data.requests.length;
+      const pending = data.requests.filter((r: any) => r.status === 'pending').length;
+      const assigned = data.requests.filter((r: any) => r.status === 'assigned').length;
+      const completed = data.requests.filter((r: any) => r.status === 'completed').length;
+
+      setStats({ total, pending, assigned, completed });
+
+    } catch (err) {
+      console.error("데이터 가져오기 실패:", err);
+    }
+  };
+
+  // 🔥 상태 변경 (핵심 추가)
+  const handleStatusChange = async (id: number, status: string) => {
+    try {
+      await fetch(`http://localhost:3000/api/requests/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+
+      fetchData(); // 바로 갱신
+    } catch (err) {
+      console.error("상태 변경 실패:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+
+    const interval = setInterval(fetchData, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="app-container" style={{ maxWidth: '1400px' }}>
       <div className="page-header">
-        <div>
-          <h1 className="text-3xl font-bold">{t('KEEP Admin Dashboard')}</h1>
-          <p className="text-muted mt-2">{t('Real-time overview of NFC fitting requests and operations.')}</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <ThemeToggle />
-          <LanguageToggle />
-          <button className="btn btn-secondary">
-            <LayoutDashboard size={18} /> {t('Export Data')}
-          </button>
-        </div>
+        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
       </div>
 
-      {/* 통계 카드 — useAdminStats() / GET /admin/stats */}
+      {/* 통계 */}
       <div className="grid-cols-4 mb-8">
-        <div className="card p-6 flex items-center gap-4 animate-slide-in" style={{ animationDelay: '0ms' }}>
-          <div style={{ background: '#e0e7ff', padding: '1rem', borderRadius: '50%', color: '#4f46e5' }}>
-            <Activity size={24} />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-muted">{t('Total Requests')}</p>
-            <h2 className="text-2xl font-bold">{stats.total}</h2>
-          </div>
-        </div>
-
-        <div className="card p-6 flex items-center gap-4 animate-slide-in" style={{ animationDelay: '50ms' }}>
-          <div style={{ background: '#fef3c7', padding: '1rem', borderRadius: '50%', color: '#d97706' }}>
-            <Users size={24} />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-muted">{t('Awaiting Prep (Pending)')}</p>
-            <h2 className="text-2xl font-bold">{stats.pending}</h2>
-          </div>
-        </div>
-
-        <div className="card p-6 flex items-center gap-4 animate-slide-in" style={{ animationDelay: '100ms' }}>
-          <div style={{ background: '#bfdbfe', padding: '1rem', borderRadius: '50%', color: '#2563eb' }}>
-            <Users size={24} />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-muted">{t('In Progress (Assigned)')}</p>
-            <h2 className="text-2xl font-bold">{stats.assigned}</h2>
-          </div>
-        </div>
-
-        <div className="card p-6 flex items-center gap-4 animate-slide-in" style={{ animationDelay: '150ms' }}>
-          <div style={{ background: '#dcfce7', padding: '1rem', borderRadius: '50%', color: '#16a34a' }}>
-            <CheckCircle2 size={24} />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-muted">{t('Completed Requests')}</p>
-            <h2 className="text-2xl font-bold">{stats.completed}</h2>
-          </div>
-        </div>
+        <div className="card p-6">총 요청: {stats.total}</div>
+        <div className="card p-6">Pending: {stats.pending}</div>
+        <div className="card p-6">Assigned: {stats.assigned}</div>
+        <div className="card p-6">Completed: {stats.completed}</div>
       </div>
 
-      {/* 요청 로그 테이블 — useRequests() / GET /requests */}
-      <h2 className="text-xl font-bold mb-4">{t('Live Request Log')}</h2>
-      <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>{t('Time')}</th>
-              <th>{t('Req ID')}</th>
-              <th>{t('Fitting Room')}</th>
-              <th>{t('Product')}</th>
-              <th>{t('Status')}</th>
-              <th>{t('Elapsed')}</th>
+      {/* 테이블 */}
+      <table>
+        <thead>
+          <tr>
+            <th>시간</th>
+            <th>상품</th>
+            <th>상태</th>
+            <th>관리</th> {/* 🔥 추가 */}
+          </tr>
+        </thead>
+        <tbody>
+          {requests.map((r, i) => (
+            <tr key={i}>
+              <td>{format(new Date(r.requestTime), 'HH:mm:ss')}</td>
+              <td>{r.productName}</td>
+
+              {/* 상태 */}
+              <td>
+                <span className={`status-badge ${r.status}`}>
+                  {r.status}
+                </span>
+              </td>
+
+              {/* 🔥 버튼 추가 */}
+              <td style={{ display: 'flex', gap: '6px' }}>
+                {r.status === 'pending' && (
+                  <button
+                    style={{ background: '#22c55e', color: 'white', padding: '4px 8px', borderRadius: '6px' }}
+                    onClick={() => handleStatusChange(r.requestId, 'completed')}
+                  >
+                    완료
+                  </button>
+                )}
+
+                {r.status === 'completed' && (
+                  <button
+                    style={{ background: '#f59e0b', color: 'white', padding: '4px 8px', borderRadius: '6px' }}
+                    onClick={() => handleStatusChange(r.requestId, 'pending')}
+                  >
+                    되돌리기
+                  </button>
+                )}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {requests.map(req => {
-              const elapsedMins = Math.floor((Date.now() - req.requestTime) / 60000);
-              return (
-                <tr key={req.requestId}>
-                  <td className="font-medium">{format(req.requestTime, 'HH:mm:ss')}</td>
-                  <td className="text-sm text-muted">{req.requestId.slice(-6)}</td>
-                  <td className="font-bold" style={{ textAlign: 'center' }}>Room {req.fittingRoomId}</td>
-                  {/* 단일 상품 — 백엔드 구조: 요청 1개 = 상품 1개 */}
-                  <td className="text-sm">
-                    <span title={`${req.color} / ${req.size}`}>
-                      {req.productName}
-                    </span>
-                    <span className="text-muted" style={{ fontSize: '0.75rem', marginLeft: '4px' }}>
-                      ({req.color} / {req.size})
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`status-badge ${req.status}`}>{t(req.status)}</span>
-                  </td>
-                  <td className="text-sm text-muted">
-                    {req.status === 'completed' ? t('Done') : `${elapsedMins} ${t('min ago')}`}
-                  </td>
-                </tr>
-              );
-            })}
-            {requests.length === 0 && (
-              <tr>
-                <td colSpan={6} className="p-8 text-center text-muted">
-                  {t('No request logs available.')}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
